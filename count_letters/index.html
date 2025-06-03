@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文章總字符數計算器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .title-gradient {
+            background: linear-gradient(to right, #6366f1, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        /* 自定義訊息框樣式 */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            font-size: 0.875rem; /* text-sm */
+        }
+        .message-box.success {
+            background-color: #d1fae5; /* green-100 */
+            color: #065f46; /* green-800 */
+        }
+        .message-box.error {
+            background-color: #fee2e2; /* red-100 */
+            color: #991b1b; /* red-800 */
+        }
+        .message-box.info { /* 新增 info 樣式 */
+            background-color: #e0f2fe; /* sky-100 */
+            color: #075985; /* sky-800 */
+        }
+        .message-box.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 to-slate-800 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-indigo-500 selection:text-white">
+
+    <div class="container bg-slate-800 shadow-2xl rounded-xl p-6 md:p-10 w-full max-w-2xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold title-gradient">文章總字符數計算器</h1>
+            <p class="text-slate-400 mt-2">輕鬆計算並管理您的文字內容！</p>
+        </header>
+
+        <main>
+            <div class="mb-6">
+                <label for="articleText" class="block text-sm font-medium text-slate-300 mb-2">請在此貼上您的文章：</label>
+                <textarea id="articleText" rows="10" class="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-100 placeholder-slate-500 resize-none" placeholder="將文字貼到這裡..."></textarea>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <button id="countButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-800 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                    </svg>
+                    計算字符數
+                </button>
+                <button id="copyButton" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-800 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                    </svg>
+                    複製文字
+                </button>
+                <button id="clearButton" class="w-full bg-slate-600 hover:bg-slate-500 text-slate-200 font-semibold py-3 px-4 rounded-lg shadow-md transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-800 flex items-center justify-center">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.243.096 3.242.26m-2.175.483a2.25 2.25 0 0 1 .141-1.415L6.25 3.653a2.25 2.25 0 0 1 2.244-2.077H15.5a2.25 2.25 0 0 1 2.244 2.077l1.884 2.638a2.25 2.25 0 0 1 .14 1.415M3 6h18" />
+                    </svg>
+                    清除內容
+                </button>
+            </div>
+
+            <div id="resultArea" class="bg-slate-700 p-6 rounded-lg shadow-inner min-h-[80px] flex items-center justify-center">
+                <p id="charCountDisplay" class="text-lg text-slate-300">總字符數 (含空格、換行) 將顯示於此處。</p>
+            </div>
+        </main>
+
+        <footer class="text-center mt-10 text-sm text-slate-500">
+            <p>&copy; <span id="currentYear"></span> 字符數計算器. </p>
+        </footer>
+    </div>
+
+    <div id="messageBox" class="message-box"></div>
+
+    <script>
+        // 獲取DOM元素
+        const articleText = document.getElementById('articleText');
+        const countButton = document.getElementById('countButton');
+        const clearButton = document.getElementById('clearButton');
+        const copyButton = document.getElementById('copyButton'); // 新增複製按鈕的獲取
+        const charCountDisplay = document.getElementById('charCountDisplay');
+        const resultArea = document.getElementById('resultArea');
+        const messageBox = document.getElementById('messageBox');
+
+        // 設定目前年份
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+        // 顯示訊息提示框的函數
+        function showMessage(message, type = 'success') {
+            messageBox.textContent = message;
+            messageBox.className = `message-box ${type} show`;
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, 3000);
+        }
+
+        // 計算字符數的函數
+        countButton.addEventListener('click', () => {
+            const text = articleText.value;
+
+            if (text === "") {
+                charCountDisplay.textContent = "總字符數 (含空格、換行)：0";
+                resultArea.classList.remove('border-green-500'); // 清除可能存在的成功邊框
+                resultArea.classList.add('border-red-500'); // 添加錯誤提示邊框
+                showMessage("請先輸入文字！", "error");
+                return;
+            }
+            resultArea.classList.remove('border-red-500'); // 清除可能存在的錯誤邊框
+
+            const charCount = text.length;
+            charCountDisplay.textContent = `總字符數 (含空格、換行)：${charCount}`;
+            resultArea.classList.add('border-green-500');
+            showMessage("字符數計算完成！", "success");
+        });
+
+        // 清除內容的函數
+        clearButton.addEventListener('click', () => {
+            articleText.value = "";
+            charCountDisplay.textContent = "總字符數 (含空格、換行)：0";
+            resultArea.classList.remove('border-green-500', 'border-red-500');
+            showMessage("內容已清除。", "info"); // 使用 info 類型提示
+        });
+
+        // 複製文字的函數
+        copyButton.addEventListener('click', () => {
+            const textToCopy = articleText.value;
+
+            if (textToCopy === "") {
+                showMessage("沒有內容可以複製。", "error");
+                return;
+            }
+
+            // 創建一個臨時的 textarea 元素來執行複製操作
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = textToCopy;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            tempTextArea.setSelectionRange(0, 99999); // 兼容移動設備
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showMessage("文字已成功複製到剪貼簿！", "success");
+                } else {
+                    showMessage("複製失敗，請手動複製。", "error");
+                }
+            } catch (err) {
+                showMessage("複製時發生錯誤，請手動複製。", "error");
+                console.error('Fallback: Oops, unable to copy', err);
+            }
+
+            document.body.removeChild(tempTextArea); // 移除臨時元素
+        });
+
+
+        // 頁面加載時設定初始的結果顯示文字 (如果輸入框為空)
+        if (articleText.value === "") {
+             charCountDisplay.textContent = "總字符數 (含空格、換行) 將顯示於此處。";
+        }
+
+    </script>
+
+</body>
+</html>

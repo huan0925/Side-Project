@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Base64 圖片轉換器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+        }
+        .panel {
+            background-color: white;
+            border-radius: 0.5rem; /* Tailwind rounded-lg */
+            padding: 1.5rem; /* Tailwind p-6 */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* Tailwind shadow-md */
+            display: flex;
+            flex-direction: column;
+            height: 450px; /* Fixed height for panels */
+        }
+        textarea {
+            resize: none;
+            border: 1px solid #d1d5db; /* Tailwind border-gray-300 */
+            border-radius: 0.375rem; /* Tailwind rounded-md */
+            padding: 0.75rem; /* Tailwind p-3 */
+            flex-grow: 1;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #2563eb; /* Tailwind border-blue-600 */
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); /* Tailwind ring-blue-500 */
+        }
+        .convert-btn, .switch-btn, .upload-label {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.375rem; /* Tailwind rounded-md */
+            font-weight: 500; /* Tailwind font-medium */
+            cursor: pointer;
+            transition: background-color 0.2s;
+            text-align: center;
+        }
+        .convert-btn {
+            background-color: #2563eb; /* Tailwind bg-blue-600 */
+            color: white;
+            margin-top: 1rem; /* Tailwind mt-4 */
+        }
+        .convert-btn:hover {
+            background-color: #1d4ed8; /* Tailwind bg-blue-700 */
+        }
+        .switch-btn {
+            background-color: #4b5563; /* Tailwind bg-gray-600 */
+            color: white;
+        }
+        .switch-btn:hover {
+            background-color: #374151; /* Tailwind bg-gray-700 */
+        }
+        .upload-label {
+            background-color: #10b981; /* Tailwind bg-emerald-500 */
+            color: white;
+            display: inline-block;
+            margin-top: 1rem;
+        }
+        .upload-label:hover {
+            background-color: #059669; /* Tailwind bg-emerald-600 */
+        }
+        #imageUpload {
+            display: none; /* Hide the default file input */
+        }
+        #imagePreviewContainer {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #d1d5db; /* Tailwind border-dashed border-gray-300 */
+            border-radius: 0.375rem; /* Tailwind rounded-md */
+            overflow: hidden;
+            background-color: #f9fafb; /* Tailwind bg-gray-50 */
+        }
+        #imagePreview {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 0.25rem; /* Tailwind rounded-sm */
+        }
+        #imagePlaceholder {
+            color: #6b7280; /* Tailwind text-gray-500 */
+        }
+        #messageArea {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            text-align: center;
+        }
+        .message-success {
+            background-color: #d1fae5; /* Tailwind bg-green-100 */
+            color: #065f46; /* Tailwind text-green-700 */
+        }
+        .message-error {
+            background-color: #fee2e2; /* Tailwind bg-red-100 */
+            color: #991b1b; /* Tailwind text-red-700 */
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .panel {
+                width: 90%;
+                margin-bottom: 1rem;
+                height: auto; /* Adjust height for stacked layout */
+                min-height: 350px;
+            }
+            .switch-panel {
+                margin: 0.5rem 0;
+            }
+            #imagePreviewContainer {
+                min-height: 200px;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <h1 class="text-3xl font-bold text-gray-700 mb-8">Base64 圖片轉換器</h1>
+
+    <div class="main-container flex flex-row items-start justify-center gap-4 w-full max-w-5xl">
+        <div class="panel w-5/12">
+            <h2 id="leftPanelTitle" class="text-xl font-semibold mb-3 text-gray-700">輸入 Base64 編碼</h2>
+            <textarea id="base64Textarea" class="w-full h-full" placeholder="在此貼上 Base64 字串..."></textarea>
+            <button id="convertToImageBtn" class="convert-btn w-full">轉換為圖片</button>
+        </div>
+
+        <div class="switch-panel flex items-center self-center pt-12 md:pt-0">
+            <button id="switchModeBtn" class="switch-btn text-2xl px-4 py-2" title="切換轉換方向">⇆</button>
+        </div>
+
+        <div class="panel w-5/12">
+            <h2 id="rightPanelTitle" class="text-xl font-semibold mb-3 text-gray-700">圖片預覽</h2>
+            <div id="imagePreviewContainer" class="w-full h-full">
+                <img id="imagePreview" src="#" alt="圖片預覽" style="display:none;">
+                <p id="imagePlaceholder">圖片將顯示於此</p>
+            </div>
+            <input type="file" id="imageUpload" accept="image/*">
+            <label for="imageUpload" id="imageUploadLabel" class="upload-label w-full" style="display:none;">點擊此處上傳圖片</label>
+        </div>
+    </div>
+
+    <div id="messageArea" class="w-full max-w-5xl mt-4"></div>
+
+    <script>
+        // DOM Elements
+        const base64Textarea = document.getElementById('base64Textarea');
+        const imagePreview = document.getElementById('imagePreview');
+        const imagePlaceholder = document.getElementById('imagePlaceholder');
+        const imageUploadInput = document.getElementById('imageUpload');
+        const imageUploadLabel = document.getElementById('imageUploadLabel');
+        
+        const convertToImageBtn = document.getElementById('convertToImageBtn');
+        const switchModeBtn = document.getElementById('switchModeBtn');
+        
+        const leftPanelTitleEl = document.getElementById('leftPanelTitle');
+        const rightPanelTitleEl = document.getElementById('rightPanelTitle');
+        const messageAreaEl = document.getElementById('messageArea');
+
+        // Initial state
+        let currentMode = 'b64_to_img'; // 'b64_to_img' or 'img_to_b64'
+
+        // --- Utility Functions ---
+        function showMessage(message, type = 'info') {
+            messageAreaEl.textContent = message;
+            messageAreaEl.className = 'w-full max-w-5xl mt-4'; // Reset classes
+            if (type === 'success') {
+                messageAreaEl.classList.add('message-success');
+            } else if (type === 'error') {
+                messageAreaEl.classList.add('message-error');
+            } else {
+                 messageAreaEl.classList.add('text-gray-600', 'bg-gray-200'); // Neutral info
+            }
+            // Clear message after some time
+            setTimeout(() => {
+                messageAreaEl.textContent = '';
+                messageAreaEl.className = 'w-full max-w-5xl mt-4';
+            }, 5000);
+        }
+
+        function clearOutputs() {
+            base64Textarea.value = '';
+            imagePreview.src = '#';
+            imagePreview.style.display = 'none';
+            imagePlaceholder.style.display = 'block';
+            imageUploadInput.value = ''; // Clear file input selection
+            messageAreaEl.textContent = '';
+            messageAreaEl.className = 'w-full max-w-5xl mt-4';
+        }
+
+        // --- UI Update Function ---
+        function updateUI() {
+            clearOutputs();
+            if (currentMode === 'b64_to_img') {
+                leftPanelTitleEl.textContent = '輸入 Base64 編碼';
+                rightPanelTitleEl.textContent = '圖片預覽';
+                
+                base64Textarea.readOnly = false;
+                base64Textarea.placeholder = "在此貼上 Base64 字串...";
+                convertToImageBtn.style.display = 'block';
+                
+                imageUploadLabel.style.display = 'none';
+                imagePreview.alt = "Base64 圖片預覽";
+
+            } else { // img_to_b64
+                leftPanelTitleEl.textContent = 'Base64 結果';
+                rightPanelTitleEl.textContent = '上傳圖片';
+
+                base64Textarea.readOnly = true;
+                base64Textarea.placeholder = "圖片的 Base64 編碼將顯示於此";
+                convertToImageBtn.style.display = 'none';
+                
+                imageUploadLabel.style.display = 'block';
+                imagePreview.alt = "已上傳圖片預覽";
+            }
+        }
+
+        // --- Event Handlers ---
+        function handleConvertToImage() {
+            const base64String = base64Textarea.value.trim();
+            if (!base64String) {
+                showMessage('請先輸入 Base64 字串。', 'error');
+                return;
+            }
+
+            // Basic check if it's a data URI or raw base64
+            // If raw, prepend a common data URI prefix. This is a simplification.
+            // A more robust solution would involve trying to detect mime type or having user specify.
+            let imgSrc = base64String;
+            if (!base64String.startsWith('data:image')) {
+                // Attempt to guess common types or default to png
+                // This part can be tricky as we don't know the actual image type from raw base64
+                imgSrc = `data:image/png;base64,${base64String}`;
+            }
+            
+            imagePreview.onload = () => {
+                imagePreview.style.display = 'block';
+                imagePlaceholder.style.display = 'none';
+                showMessage('圖片轉換成功！', 'success');
+            };
+            imagePreview.onerror = () => {
+                imagePreview.style.display = 'none';
+                imagePlaceholder.style.display = 'block';
+                showMessage('無法從 Base64 字串載入圖片。請檢查編碼是否正確且為圖片格式。', 'error');
+            };
+            imagePreview.src = imgSrc;
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                if (!file.type.startsWith('image/')) {
+                    showMessage('請上傳有效的圖片檔案。', 'error');
+                    imageUploadInput.value = ''; // Clear invalid file
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    imagePlaceholder.style.display = 'none';
+                    
+                    // The result includes the 'data:image/...;base64,' prefix
+                    base64Textarea.value = e.target.result; 
+                    showMessage('圖片已成功轉換為 Base64 編碼！', 'success');
+                };
+                reader.onerror = () => {
+                    showMessage('讀取檔案時發生錯誤。', 'error');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function toggleMode() {
+            currentMode = (currentMode === 'b64_to_img') ? 'img_to_b64' : 'b64_to_img';
+            updateUI();
+        }
+
+        // --- Attach Event Listeners ---
+        convertToImageBtn.addEventListener('click', handleConvertToImage);
+        imageUploadInput.addEventListener('change', handleImageUpload);
+        switchModeBtn.addEventListener('click', toggleMode);
+
+        // --- Initial Setup ---
+        updateUI(); // Set up UI based on initial mode
+
+    </script>
+</body>
+</html>

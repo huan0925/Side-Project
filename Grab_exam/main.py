@@ -7,6 +7,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import pandas as pd
+import re
+from docx import Document
+import os
 
 class YamolScraper:
     def __init__(self, headless=True):
@@ -18,6 +21,7 @@ class YamolScraper:
         self.driver = None
         self.headless = headless
         self.setup_driver()
+        self.doc = Document()
     
     def setup_driver(self):
         """設置Chrome瀏覽器驅動"""
@@ -94,30 +98,41 @@ class YamolScraper:
             list: 包含所有題目信息的字典列表
         """
         all_questions = []
-        
-        for i in range(total_questions):
+        i = 0
+        docx_filename = 'yamol_questions.docx'
+        while i < total_questions:
             current_id = start_id + i
             question_url = f"{base_url}?info=item.{current_id}"
-            
             print(f"\n正在抓取第 {i+1}/{total_questions} 題 (ID: {current_id})")
             print(f"URL: {question_url}")
-            
             try:
                 question_data = self.scrape_single_question(question_url, i+1)
                 if question_data:
                     all_questions.append(question_data)
                     print(question_data)
                     print(f"✓ 第 {i+1} 題抓取成功")
+                    # 每抓到一筆就寫入 docx
+                    self.save_to_docx(question_data, docx_filename)
                 else:
                     print(f"✗ 第 {i+1} 題抓取失敗")
-                
-                # 避免請求過於頻繁
                 time.sleep(2)
-                
+                i += 1
             except Exception as e:
-                print(f"✗ 第 {i+1} 題發生錯誤: {e}")
-                continue
-        
+                if "invalid session id" in str(e).lower():
+                    print("遇到 invalid session id，等待 60 秒並重啟瀏覽器...")
+                    time.sleep(60)
+                    try:
+                        self.close()  # 先關閉舊的
+                        self.setup_driver()
+                    except Exception as setup_e:
+                        print(f"重啟 driver 失敗: {setup_e}")
+                        print("將跳過本題")
+                        i += 1
+                    continue
+                else:
+                    print(f"✗ 第 {i+1} 題發生錯誤: {e}")
+                    i += 1
+                    continue
         return all_questions
     
     def scrape_single_question(self, url, question_num):
@@ -285,6 +300,25 @@ class YamolScraper:
             
             question_data['explanation'] = explanation
             
+            # 擷取「開始測驗」到「答案」之間的題目
+            qt = question_data['question_text']
+            match = re.search(r'開始測驗(.*?)永續發展基礎能力#6721 -114年 - 114-1 保險事業發展中心辦理_永續發展基礎能力測驗試題：永續發展基礎能力測驗#125609\n答案', qt, re.DOTALL)
+            if match:
+                parsed_question = match.group(1).strip()
+            else:
+                parsed_question = ''
+            question_data['parsed_question'] = parsed_question
+            # 擷取統計答案
+            stat_match = re.search(r'統計：([A-Z]\(\d+\)(?:, [A-Z]\(\d+\))*)', qt)
+            stat_answer = ''
+            if stat_match:
+                stat_str = stat_match.group(1)
+                options = re.findall(r'([A-Z])\((\d+)\)', stat_str)
+                if options:
+                    max_option = max(options, key=lambda x: int(x[1]))
+                    stat_answer = max_option[0]
+            question_data['stat_answer'] = stat_answer
+            
             return question_data
             
         except Exception as e:
@@ -375,25 +409,38 @@ class YamolScraper:
             json.dump(data, f, ensure_ascii=False, indent=2)
         print(f"數據已保存至 {filename}")
     
-    def save_to_excel(self, data, filename='yamol_questions.xlsx'):
-        """將數據保存為Excel文件"""
-        if data:
-            df = pd.DataFrame(data)
-            df.to_excel(filename, index=False, encoding='utf-8')
-            print(f"數據已保存至 {filename}")
+    # def save_to_excel(self, data, filename='yamol_questions.xlsx'):
+    #     """將數據保存為Excel文件"""
+    #     if data:
+    #         df = pd.DataFrame(data)
+    #         df.to_excel(filename, index=False, encoding='utf-8')
+    #         print(f"數據已保存至 {filename}")
+    #     else:
+    #         print("沒有數據可保存")
+    
+    def save_to_docx(self, question_data, filename='yamol_questions.docx'):
+        """將單一題目append寫入 docx 檔案"""
+        if os.path.exists(filename):
+            doc = Document(filename)
         else:
-            print("沒有數據可保存")
+            doc = Document()
+        # doc.add_paragraph(f"題號: {question_data.get('question_number','')}")
+        doc.add_paragraph(f"題目: {question_data.get('parsed_question','')}")
+        # if question_data.get('options'):
+        #     doc.add_paragraph(f"選項: {', '.join(question_data['options'])}")
+        doc.add_paragraph(f"答案: {question_data.get('stat_answer','')}")
+        doc.add_paragraph(f"原始網址: {question_data.get('url','')}")
+        # doc.add_paragraph('---')
+        doc.save(filename)
     
     def close(self):
         """關閉瀏覽器驅動"""
         if self.driver:
             self.driver.quit()
 
-def main():
+def main(start_id=3399058, total_questions=80):
     """主函數"""
     base_url = "https://app.yamol.tw/exam/125609"
-    start_id = 3399058  # 第一題的ID
-    total_questions = 80  # 總共80題
     
     print(f"準備抓取 {total_questions} 題，從ID {start_id} 開始")
     print(f"第1題: {base_url}?info=item.{start_id}")
@@ -401,7 +448,7 @@ def main():
     print("-" * 60)
     
     # 創建爬蟲實例
-    scraper = YamolScraper(headless=False)  # 設為False可以看到瀏覽器運行過程
+    scraper = YamolScraper(headless=True)  # 設為False可以看到瀏覽器運行過程
     
     try:
         # 抓取所有題目數據
@@ -450,7 +497,7 @@ def main():
             excel_filename = f'yamol_questions_{timestamp}.xlsx'
             
             scraper.save_to_json(questions, json_filename)
-            scraper.save_to_excel(questions, excel_filename)
+            # scraper.save_to_excel(questions, excel_filename)
             
         else:
             print("未能抓取到任何題目數據")
@@ -478,7 +525,9 @@ if __name__ == "__main__":
     print("- 結束ID: 3399137 (第80題)")
     
     user_input = input("\n是否使用預設參數？(y/n，直接按Enter使用預設): ").strip().lower()
-    
+    start_id = 3399058
+    total_questions = 80
+
     if user_input == 'n':
         try:
             start_id = int(input("請輸入起始ID (預設3399058): ") or 3399058)
@@ -488,6 +537,6 @@ if __name__ == "__main__":
             print("輸入格式錯誤，使用預設參數")
             start_id = 3399058
             total_questions = 80
-    
+
     print(f"\n開始執行...")
-    main()
+    main(start_id, total_questions)

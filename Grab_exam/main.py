@@ -135,7 +135,7 @@ class YamolScraper:
                     continue
         return all_questions
     
-    def scrape_single_question(self, url, question_num):
+    def scrape_single_question(self, url, question_num, retry=3):
         """
         抓取單個題目
         Args:
@@ -144,186 +144,200 @@ class YamolScraper:
         Returns:
             dict: 題目信息字典
         """
-        try:
-            self.driver.get(url)
-            
-            # 注入反檢測腳本
-            self.driver.execute_script("""
-                // 阻止常見的反爬蟲檢測
-                if (typeof window.devtools !== 'undefined') {
-                    window.devtools = {open: false};
+        for attempt in range(retry):
+            try:
+                self.driver.get(url)
+                
+                # 注入反檢測腳本
+                self.driver.execute_script("""
+                    // 阻止常見的反爬蟲檢測
+                    if (typeof window.devtools !== 'undefined') {
+                        window.devtools = {open: false};
+                    }
+                    
+                    // 禁用右鍵檢查
+                    document.addEventListener('contextmenu', function(e) {
+                        e.stopPropagation();
+                    }, true);
+                    
+                    // 禁用F12檢測
+                    document.addEventListener('keydown', function(e) {
+                        if (e.keyCode === 123) { // F12
+                            e.stopPropagation();
+                        }
+                    }, true);
+                """)
+                
+                # 等待頁面載入
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
+                time.sleep(3)
+                
+                # 滾動頁面確保內容載入
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(1)
+                self.driver.execute_script("window.scrollTo(0, 0);")
+                time.sleep(1)
+                
+                # 獲取頁面內容
+                page_source = self.driver.page_source
+                
+                # 嘗試不同的選擇器來找到題目內容
+                question_data = {
+                    'question_number': question_num,
+                    'question_id': url.split('item.')[1] if 'item.' in url else '',
+                    'question_text': '',
+                    'options': [],
+                    'correct_answer': '',
+                    'explanation': '',
+                    'url': url
                 }
                 
-                // 禁用右鍵檢查
-                document.addEventListener('contextmenu', function(e) {
-                    e.stopPropagation();
-                }, true);
+                # 嘗試獲取題目文字
+                question_selectors = [
+                    '.question-content',
+                    '.question-text',
+                    '[class*="question"]',
+                    '.content',
+                    '.item-content',
+                    'h3',
+                    'h4',
+                    '.card-body'
+                ]
                 
-                // 禁用F12檢測
-                document.addEventListener('keydown', function(e) {
-                    if (e.keyCode === 123) { // F12
-                        e.stopPropagation();
-                    }
-                }, true);
-            """)
-            
-            # 等待頁面載入
-            WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
-            time.sleep(3)
-            
-            # 滾動頁面確保內容載入
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(1)
-            self.driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(1)
-            
-            # 獲取頁面內容
-            page_source = self.driver.page_source
-            
-            # 嘗試不同的選擇器來找到題目內容
-            question_data = {
-                'question_number': question_num,
-                'question_id': url.split('item.')[1] if 'item.' in url else '',
-                'question_text': '',
-                'options': [],
-                'correct_answer': '',
-                'explanation': '',
-                'url': url
-            }
-            
-            # 嘗試獲取題目文字
-            question_selectors = [
-                '.question-content',
-                '.question-text',
-                '[class*="question"]',
-                '.content',
-                '.item-content',
-                'h3',
-                'h4',
-                '.card-body'
-            ]
-            
-            question_text = ""
-            for selector in question_selectors:
-                try:
-                    elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                    for elem in elements:
-                        text = elem.text.strip()
-                        if text and len(text) > 10:  # 過濾太短的文字
-                            question_text = text
+                question_text = ""
+                for selector in question_selectors:
+                    try:
+                        elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                        for elem in elements:
+                            text = elem.text.strip()
+                            if text and len(text) > 10:  # 過濾太短的文字
+                                question_text = text
+                                break
+                        if question_text:
                             break
-                    if question_text:
-                        break
-                except:
-                    continue
-            
-            # 如果找不到特定元素，抓取整個body內容
-            if not question_text:
-                try:
-                    body_text = self.driver.find_element(By.TAG_NAME, "body").text
-                    # 簡單處理，取前500字符作為題目內容
-                    question_text = body_text[:500] if body_text else "無法獲取題目內容"
-                except:
-                    question_text = "無法獲取題目內容"
-            
-            question_data['question_text'] = question_text
-            
-            # 嘗試獲取選項
-            option_selectors = [
-                '.option',
-                '.choice',
-                '[class*="option"]',
-                '[class*="choice"]',
-                'li',
-                '.answer-choice'
-            ]
-            
-            options = []
-            for selector in option_selectors:
-                try:
-                    option_elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                    temp_options = []
-                    for opt in option_elements:
-                        text = opt.text.strip()
-                        if text and len(text) < 200:  # 過濾過長的文字
-                            temp_options.append(text)
-                    
-                    if temp_options and len(temp_options) >= 2:  # 至少要有2個選項
-                        options = temp_options
-                        break
-                except:
-                    continue
-            
-            question_data['options'] = options
-            
-            # 嘗試獲取正確答案
-            answer_selectors = [
-                '.correct-answer',
-                '.answer',
-                '[class*="correct"]',
-                '[class*="answer"]',
-                '.solution'
-            ]
-            
-            correct_answer = ""
-            for selector in answer_selectors:
-                try:
-                    answer_elem = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    correct_answer = answer_elem.text.strip()
-                    if correct_answer:
-                        break
-                except:
-                    continue
-            
-            question_data['correct_answer'] = correct_answer
-            
-            # 嘗試獲取解析
-            explanation_selectors = [
-                '.explanation',
-                '.解析',
-                '[class*="explanation"]',
-                '[class*="解析"]',
-                '.detail'
-            ]
-            
-            explanation = ""
-            for selector in explanation_selectors:
-                try:
-                    explanation_elem = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    explanation = explanation_elem.text.strip()
-                    if explanation:
-                        break
-                except:
-                    continue
-            
-            question_data['explanation'] = explanation
-            
-            # 擷取「開始測驗」到「答案」之間的題目
-            qt = question_data['question_text']
-            match = re.search(r'開始測驗(.*?)永續發展基礎能力#6721 -114年 - 114-1 保險事業發展中心辦理_永續發展基礎能力測驗試題：永續發展基礎能力測驗#125609\n答案', qt, re.DOTALL)
-            if match:
-                parsed_question = match.group(1).strip()
-            else:
-                parsed_question = ''
-            question_data['parsed_question'] = parsed_question
-            # 擷取統計答案
-            stat_match = re.search(r'統計：([A-Z]\(\d+\)(?:, [A-Z]\(\d+\))*)', qt)
-            stat_answer = ''
-            if stat_match:
-                stat_str = stat_match.group(1)
-                options = re.findall(r'([A-Z])\((\d+)\)', stat_str)
-                if options:
-                    max_option = max(options, key=lambda x: int(x[1]))
-                    stat_answer = max_option[0]
-            question_data['stat_answer'] = stat_answer
-            
-            return question_data
-            
-        except Exception as e:
-            print(f"抓取題目時發生錯誤: {e}")
-            return None
+                    except:
+                        continue
+                
+                # 如果找不到特定元素，抓取整個body內容
+                if not question_text:
+                    try:
+                        body_text = self.driver.find_element(By.TAG_NAME, "body").text
+                        # 簡單處理，取前500字符作為題目內容
+                        question_text = body_text[:500] if body_text else "無法獲取題目內容"
+                    except:
+                        question_text = "無法獲取題目內容"
+                
+                question_data['question_text'] = question_text
+                
+                # 嘗試獲取選項
+                option_selectors = [
+                    '.option',
+                    '.choice',
+                    '[class*="option"]',
+                    '[class*="choice"]',
+                    'li',
+                    '.answer-choice'
+                ]
+                
+                options = []
+                for selector in option_selectors:
+                    try:
+                        option_elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                        temp_options = []
+                        for opt in option_elements:
+                            text = opt.text.strip()
+                            if text and len(text) < 200:  # 過濾過長的文字
+                                temp_options.append(text)
+                        
+                        if temp_options and len(temp_options) >= 2:  # 至少要有2個選項
+                            options = temp_options
+                            break
+                    except:
+                        continue
+                
+                question_data['options'] = options
+                
+                # 嘗試獲取正確答案
+                answer_selectors = [
+                    '.correct-answer',
+                    '.answer',
+                    '[class*="correct"]',
+                    '[class*="answer"]',
+                    '.solution'
+                ]
+                
+                correct_answer = ""
+                for selector in answer_selectors:
+                    try:
+                        answer_elem = self.driver.find_element(By.CSS_SELECTOR, selector)
+                        correct_answer = answer_elem.text.strip()
+                        if correct_answer:
+                            break
+                    except:
+                        continue
+                
+                question_data['correct_answer'] = correct_answer
+                
+                # 嘗試獲取解析
+                explanation_selectors = [
+                    '.explanation',
+                    '.解析',
+                    '[class*="explanation"]',
+                    '[class*="解析"]',
+                    '.detail'
+                ]
+                
+                explanation = ""
+                for selector in explanation_selectors:
+                    try:
+                        explanation_elem = self.driver.find_element(By.CSS_SELECTOR, selector)
+                        explanation = explanation_elem.text.strip()
+                        if explanation:
+                            break
+                    except:
+                        continue
+                
+                question_data['explanation'] = explanation
+                
+                # 擷取「開始測驗」到「答案」之間的題目
+                qt = question_data['question_text']
+                match = re.search(r'開始測驗(.*?)永續發展基礎能力#6721 -114年 - 114-1 保險事業發展中心辦理_永續發展基礎能力測驗試題：永續發展基礎能力測驗#125609\n答案', qt, re.DOTALL)
+                if match:
+                    parsed_question = match.group(1).strip()
+                else:
+                    parsed_question = ''
+                question_data['parsed_question'] = parsed_question
+                # 擷取統計答案
+                stat_match = re.search(r'統計：([A-Z]\(\d+\)(?:, [A-Z]\(\d+\))*)', qt)
+                stat_answer = ''
+                if stat_match:
+                    stat_str = stat_match.group(1)
+                    options = re.findall(r'([A-Z])\((\d+)\)', stat_str)
+                    if options:
+                        max_option = max(options, key=lambda x: int(x[1]))
+                        stat_answer = max_option[0]
+                question_data['stat_answer'] = stat_answer
+                
+                return question_data
+                
+            except Exception as e:
+                if "invalid session id" in str(e).lower():
+                    print("遇到 invalid session id，等待 60 秒並重啟瀏覽器...")
+                    time.sleep(60)
+                    try:
+                        self.close()
+                        self.setup_driver()
+                    except Exception as setup_e:
+                        print(f"重啟 driver 失敗: {setup_e}")
+                        print("將跳過本題")
+                        return None
+                    print("重啟 driver 完成，重試本題...")
+                    continue  # 不遞增 attempt，重試
+                else:
+                    print(f"抓取題目時發生錯誤: {e}")
+                    return None
     
     def extract_question_data(self, element, question_num):
         """

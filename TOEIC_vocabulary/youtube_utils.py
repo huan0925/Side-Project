@@ -3,6 +3,8 @@ from youtube_transcript_api import YouTubeTranscriptApi
 import re
 from googleapiclient.discovery import build
 import os
+import json
+from youtube_transcript_api.formatters import TextFormatter
 
 def search_youtube_videos(youtube, query="AI artificial intelligence", max_results=5):
     try:
@@ -72,8 +74,41 @@ def simple_get_video_transcript(video_id):
         print(f"無法獲取字幕：{e}")
         return None
 
+def get_video_title(video_url):
+    """
+    從 YouTube 影片 URL 獲取影片標題
+    
+    Args:
+        video_url: YouTube 影片 URL
+        
+    Returns:
+        影片標題字串，如果失敗則回傳 None
+    """
+    try:
+        # 從 URL 中提取影片 ID
+        video_id = video_url.split('v=')[-1]
+        
+        # 建立 YouTube API 客戶端
+        youtube = build('youtube', 'v3', developerKey=os.getenv('YOUTUBE_API_KEY'))
+        
+        # 獲取影片資訊
+        request = youtube.videos().list(
+            part='snippet',
+            id=video_id
+        )
+        response = request.execute()
+        
+        if response['items']:
+            return response['items'][0]['snippet']['title']
+        else:
+            logging.error(f"無法獲取影片標題: {video_url}")
+            return None
+            
+    except Exception as e:
+        logging.error(f"獲取影片標題時發生錯誤: {e}")
+        return None
+
 if __name__ == "__main__":
-    # 待解issue: 無法獲取字幕但是仍然會寄送 email
     youtube = build('youtube', 'v3', developerKey=os.getenv('YOUTUBE_API_KEY'))
     video_info = get_video_info_by_url(youtube, 'https://youtu.be/wWzVZzHMbVQ?si=uFQ6MG6GFXdrC1L-') # 有字幕
     # video_info = get_video_info_by_url(youtube, 'https://www.youtube.com/watch?v=HzhRqVUHJ5Q!') # 沒字幕

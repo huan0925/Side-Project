@@ -5,8 +5,9 @@ from youtube_transcript_api import YouTubeTranscriptApi
 import google.generativeai as genai
 from googleapiclient.discovery import build
 from email_utils import create_email_content, send_email
-from youtube_utils import search_youtube_videos, simple_get_video_transcript
+from youtube_utils import search_youtube_videos, simple_get_video_transcript, get_video_title
 from gemini_utils import extract_toeic_words_with_gemini
+from quiz_generator import generate_toeic_quiz, format_quiz_for_email
 
 class TOEICWordExtractor:
     def __init__(self):
@@ -48,4 +49,78 @@ class TOEICWordExtractor:
                     logging.warning(f"從影片 {video['title']} 中萃取的單字數量不足")
             else:
                 logging.warning(f"無法獲取影片 {video['title']} 的字幕")
-        logging.error("所有影片都無法成功萃取足夠的單字") 
+        logging.error("所有影片都無法成功萃取足夠的單字")
+
+    def daily_word_extraction_with_quiz(self, video_url):
+        try:
+            # 獲取影片標題
+            video_title = get_video_title(video_url)
+            if not video_title:
+                logging.error("無法獲取影片標題")
+                return None
+
+            # 獲取影片字幕
+            transcript_text = simple_get_video_transcript(video_url)
+            if not transcript_text:
+                logging.error("無法獲取影片字幕")
+                return None
+
+            # 使用 Gemini 提取單字
+            words = extract_toeic_words_with_gemini(self.gemini_model, transcript_text, video_title)
+            if not words:
+                logging.error("無法提取單字")
+                return None
+
+            # 生成考題
+            quiz_questions = generate_toeic_quiz(self.gemini_model, words)
+            if not quiz_questions:
+                logging.error("無法生成考題")
+                return None
+
+            # 準備郵件內容
+            email_content = f"""
+            <h2>今日 TOEIC 單字學習</h2>
+            <p>影片標題：{video_title}</p>
+            
+            <h3>單字列表：</h3>
+            <ul>
+            """
+            
+            for word in words:
+                email_content += f"""
+                <li>
+                    <strong>{word['word']}</strong> ({word['part_of_speech']}) - {word['chinese']}<br>
+                    例句：{word['example']}
+                </li>
+                """
+            
+            email_content += """
+            </ul>
+            """
+            
+            # 加入考題內容
+            email_content += format_quiz_for_email(quiz_questions)
+
+            return {
+                'subject': f'TOEIC 單字學習 - {video_title}',
+                'content': email_content
+            }
+        except Exception as e:
+            logging.error(f"處理影片時發生錯誤: {e}")
+            return None
+
+    def get_video_title(self, video_url):
+        # Implementation of get_video_title method
+        pass
+
+    def generate_toeic_quiz(self, words):
+        # Implementation of generate_toeic_quiz method
+        pass
+
+    def send_email_with_content(self, subject, content, recipient_email):
+        # Implementation of send_email_with_content method
+        pass
+
+    def send_daily_word_extraction_email(self):
+        # Implementation of send_daily_word_extraction_email method
+        pass 

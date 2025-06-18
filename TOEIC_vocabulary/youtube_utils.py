@@ -110,7 +110,7 @@ def get_video_title(video_url):
 
 if __name__ == "__main__":
     youtube = build('youtube', 'v3', developerKey=os.getenv('YOUTUBE_API_KEY'))
-    video_info = get_video_info_by_url(youtube, 'https://youtu.be/wWzVZzHMbVQ?si=uFQ6MG6GFXdrC1L-') # 有字幕
+    video_info = get_video_info_by_url(youtube, 'https://youtu.be/mi2vCsP1oKY?si=nuWsqkGtKT253GfB') # 有字幕
     # video_info = get_video_info_by_url(youtube, 'https://www.youtube.com/watch?v=HzhRqVUHJ5Q!') # 沒字幕
     print(video_info)
     full_context = simple_get_video_transcript(video_info['video_id'])

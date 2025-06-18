@@ -5,7 +5,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 import google.generativeai as genai
 from googleapiclient.discovery import build
 from email_utils import create_email_content, send_email
-from youtube_utils import search_youtube_videos, simple_get_video_transcript, get_video_title
+from youtube_utils import search_youtube_videos, simple_get_video_transcript, get_video_title, get_video_info_by_url
 from gemini_utils import extract_toeic_words_with_gemini
 from quiz_generator import generate_toeic_quiz, format_quiz_for_email
 
@@ -18,6 +18,7 @@ class TOEICWordExtractor:
         self.recipient_email = os.getenv('RECIPIENT_EMAIL')
         self.youtube = build('youtube', 'v3', developerKey=self.youtube_api_key)
         genai.configure(api_key=self.gemini_api_key)
+        self.url = None
         self.gemini_model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
         self.toeic_keywords = [
             'business', 'management', 'finance', 'marketing', 'conference',
@@ -25,6 +26,53 @@ class TOEICWordExtractor:
             'customer', 'client', 'service', 'quality', 'efficient',
             'technology', 'innovation', 'development', 'research', 'analysis'
         ]
+
+    def word_extraction_specific_video(self):
+        logging.info("開始處理指定影片...")
+        try:
+            # 获取视频信息
+            video_info = get_video_info_by_url(self.youtube, self.url)
+            if not video_info:
+                logging.error("無法獲取影片信息")
+                return False
+
+            # 获取视频字幕
+            transcript = simple_get_video_transcript(video_info['video_id'])
+            if not transcript:
+                logging.error("無法獲取影片字幕")
+                return False
+
+            # 提取单词
+            words = extract_toeic_words_with_gemini(self.gemini_model, transcript, video_info['title'])
+            
+
+            # 准备 LINE 消息内容
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            message_content = f"Video URL - {self.url}\n\n"
+            message_content += f"影片標題：{video_info['title']}\n\n"
+            message_content += "單字列表：\n"
+            
+            if not words:
+                message_content += "未找到任何單字。"
+            else:
+                message_content += f"找到 {len(words)} 個單字：\n"
+                # 只取前20个单词
+                words_to_show = words[:20]
+                for i, word in enumerate(words_to_show, 1):
+                    message_content += f"\n{i}. {word['word']} ({word['part_of_speech']}) - {word['chinese']}\n"
+                    message_content += f"   例句：{word['example']}\n"
+
+            return {
+                'success': True,
+                'message': message_content
+            }
+
+        except Exception as e:
+            logging.error(f"處理影片時發生錯誤: {str(e)}")
+            return {
+                'success': False,
+                'message': f"處理影片時發生錯誤: {str(e)}"
+            }
 
     def daily_word_extraction(self):
         logging.info("開始每日單字萃取流程...")
@@ -36,11 +84,11 @@ class TOEICWordExtractor:
             transcript = simple_get_video_transcript(video['video_id'])
             if transcript:
                 words = extract_toeic_words_with_gemini(self.gemini_model, transcript, video['title'])
-                if len(words) >= 30:
+                if len(words) >= 10:
                     current_date = datetime.now().strftime("%Y-%m-%d")
-                    subject = f"📚 每日TOEIC單字學習 - {current_date}"
+                    video = self.url
                     email_content = create_email_content(words[:50], video)
-                    if send_email(subject, email_content, self.sender_email, self.sender_password, self.recipient_email):
+                    if send_email(video, email_content, self.sender_email, self.sender_password, self.recipient_email):
                         logging.info("今日單字學習 email 發送完成！")
                         return
                     else:
@@ -123,4 +171,8 @@ class TOEICWordExtractor:
 
     def send_daily_word_extraction_email(self):
         # Implementation of send_daily_word_extraction_email method
-        pass 
+        pass
+
+    def set_video_url(self, url):
+        self.url = url
+        return self.word_extraction_specific_video() 

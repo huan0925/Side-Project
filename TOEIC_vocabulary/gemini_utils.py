@@ -6,7 +6,7 @@ def extract_toeic_words_with_gemini(gemini_model, transcript_text, video_title):
         logging.error("字幕內容為空，無法提取單字")
         return []
     prompt = f"""
-    請從以下影片字幕中提取15個最適合TOEIC考試的重要英文單字。
+    請從以下影片字幕中提取30個最適合TOEIC考試的重要英文單字。
     影片標題: {video_title}
     影片字幕: {transcript_text[:3000]}
     請按照以下要求：

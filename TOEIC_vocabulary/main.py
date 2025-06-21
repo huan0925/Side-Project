@@ -2,6 +2,7 @@ import os
 from toeic_extractor import TOEICWordExtractor
 from dotenv import load_dotenv
 from flask import Flask, request, abort
+import threading
 
 # v3 imports for sending messages
 from linebot.v3.messaging import (
@@ -47,32 +48,10 @@ handler = WebhookHandler(line_secret)
 app = Flask(__name__)
 app.logger.setLevel(logging.DEBUG)
 
-# 設置一個路由來處理 LINE Webhook 的回調請求
-@app.route("/", methods=['POST'])
-def callback():
-    # 取得 X-Line-Signature 標頭
-    signature = request.headers['X-Line-Signature']
-
-    # 取得請求的原始內容
-    body = request.get_data(as_text=True)
-    app.logger.info(f"Request body: {body}")
-
-    # 驗證簽名並處理請求
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
-
-    return 'OK'
-
-# 設置一個事件處理器來處理 TextMessage 事件
-@handler.add(MessageEvent, message=LegacyTextMessage)
-def handle_message(event):
-    user_id = event.source.user_id
-    reply_token = event.reply_token
-    user_message = event.message.text
-    app.logger.info(f"收到的訊息: {user_message}")
-
+def handle_long_task(user_id, reply_token, user_message):
+    """
+    將所有耗時的任務放在這裡，在背景執行緒中運行。
+    """
     try:
         extractor = TOEICWordExtractor()
         extractor.url = user_message
@@ -81,11 +60,9 @@ def handle_message(event):
         if result['success']:
             message = result['message']
             
-            # 將長訊息分割成多個 chunk
             message_chunks = [message[i:i+2000] for i in range(0, len(message), 2000)]
             send_messages = [TextMessage(text=chunk) for chunk in message_chunks]
 
-            # 用 reply_message 發送第一批 (最多 5 個)
             messaging_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=reply_token,
@@ -93,7 +70,6 @@ def handle_message(event):
                 )
             )
 
-            # 如果還有更多訊息，就用 push_message 推播剩下的
             if len(send_messages) > 5:
                 for i in range(5, len(send_messages), 5):
                     messaging_api.push_message(
@@ -110,13 +86,43 @@ def handle_message(event):
                 )
             )
     except Exception as e:
-        app.logger.error(f"處理影片時發生錯誤: {str(e)}")
-        messaging_api.reply_message(
-            ReplyMessageRequest(
-                reply_token=reply_token,
-                messages=[TextMessage(text=f"發生錯誤：{str(e)}")]
+        app.logger.error(f"背景任務處理時發生錯誤: {str(e)}")
+        # 可以在這裡決定是否要推播錯誤訊息給使用者
+        messaging_api.push_message(
+            PushMessageRequest(
+                to=user_id,
+                messages=[TextMessage(text=f"處理您的請求時發生錯誤，請稍後再試。")]
             )
         )
+
+@app.route("/", methods=['POST'])
+def callback():
+    signature = request.headers['X-Line-Signature']
+    body = request.get_data(as_text=True)
+    app.logger.info(f"Request body: {body}")
+
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+
+    return 'OK'
+
+@handler.add(MessageEvent, message=LegacyTextMessage)
+def handle_message(event):
+    """
+    這個函式現在只做一件事：啟動一個背景執行緒，然後立即結束。
+    """
+    user_id = event.source.user_id
+    reply_token = event.reply_token
+    user_message = event.message.text
+    
+    # 創建並啟動背景執行緒
+    task_thread = threading.Thread(
+        target=handle_long_task, 
+        args=(user_id, reply_token, user_message)
+    )
+    task_thread.start()
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5001)

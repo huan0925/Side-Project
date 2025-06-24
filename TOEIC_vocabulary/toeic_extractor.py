@@ -55,8 +55,7 @@ class TOEICWordExtractor:
             if not words:
                 message_content += "未找到任何單字。"
             else:
-                # 只取前20个单词
-                words_to_show = words[:20]
+                words_to_show = words[:50]
                 for i, word in enumerate(words_to_show, 1):
                     message_content += f"\n{i}. {word['word']} ({word['part_of_speech']}) - {word['chinese']}\n"
                     message_content += f"   例句：{word['example']}\n"

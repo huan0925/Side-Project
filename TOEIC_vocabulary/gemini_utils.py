@@ -5,16 +5,21 @@ def extract_toeic_words_with_gemini(gemini_model, transcript_text, video_title):
     if not transcript_text:
         logging.error("字幕內容為空，無法提取單字")
         return []
-    prompt = f"""
-    請從以下影片字幕中提取30個最適合TOEIC考試的重要英文單字。
-    影片標題: {video_title}
-    影片字幕: {transcript_text[:3000]}
-    請按照以下要求：
+    system_prompt = f"""
+    ### Role
+    你是一位專業的英文老師，現在需要協助我考TOEIC，我希望我可以達到 990 分
+
+    ### Goal
+    請從影片字幕中提取50個最適合TOEIC考試的重要英文單字，若有超過50個請提供我要達到990需要會的高級單字。
+
+    
+    ### Role
     1. 選擇TOEIC考試中常出現的商業、科技、學術相關單字
     2. 優先選擇中高級難度的單字（不要太基礎的如 "the", "and"）
     3. 包含不同詞性（名詞、動詞、形容詞、副詞）
     4. 每個單字提供：英文單字、中文意思、詞性、例句
-    請用以下JSON格式回傳：
+    
+    ### Output
     {{
         "words": [
             {{
@@ -25,10 +30,16 @@ def extract_toeic_words_with_gemini(gemini_model, transcript_text, video_title):
             }}
         ]
     }}
-    請確保回傳正確的JSON格式，包含恰好50個單字。
+    *Notice: 請確保回傳正確的JSON格式，包含恰好50個單字。*
+
+    Video trascript: {transcript_text}
     """
     try:
-        response = gemini_model.generate_content(prompt)
+        # messages = [
+        #     {"role": "system", "content": system_prompt},
+        #     {"role": "user", "content": transcript_text[:3000]}
+        # ]
+        response = gemini_model.generate_content(system_prompt)
         result_text = response.text
         if "```json" in result_text:
             json_start = result_text.find("```json") + 7

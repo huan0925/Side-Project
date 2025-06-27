@@ -21,9 +21,14 @@ request_payload = {
 }
 
 try:
+    # 向 Ollama 的 /api/chat 發送 POST 請求
+    # Ollama 預設會以 streaming 方式回傳多個 JSON 物件（每一行一個 JSON）
+    # 如果直接用 response.json() 會報錯，因為回傳內容不是單一 JSON，而是多行 JSON
+    # 因此必須設置 stream=True，並用 iter_lines() 逐行解析每個 JSON 物件
     response = requests.post(OLLAMA_CHAT_API_URL, json=request_payload, stream=True)
     response.raise_for_status()
 
+    # 逐行讀取 Ollama 的 streaming response，每一行都是一個 JSON 物件
     for line in response.iter_lines():
         if line:
             data = json.loads(line)

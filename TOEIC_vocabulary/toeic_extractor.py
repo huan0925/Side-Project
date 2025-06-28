@@ -2,24 +2,24 @@ import os
 import logging
 from datetime import datetime
 from youtube_transcript_api import YouTubeTranscriptApi
-import google.generativeai as genai
+# import google.generativeai as genai
 from googleapiclient.discovery import build
 from email_utils import create_email_content, send_email
 from youtube_utils import search_youtube_videos, simple_get_video_transcript, get_video_title, get_video_info_by_url
-from gemini_utils import extract_toeic_words_with_gemini
+from gemini_utils import extract_toeic_words_with_ollama
 from quiz_generator import generate_toeic_quiz, format_quiz_for_email
 
 class TOEICWordExtractor:
     def __init__(self):
         self.youtube_api_key = os.getenv('YOUTUBE_API_KEY')
-        self.gemini_api_key = os.getenv('GEMINI_API_KEY')
+        # self.gemini_api_key = os.getenv('GEMINI_API_KEY')
         self.sender_email = os.getenv('SENDER_EMAIL')
         self.sender_password = os.getenv('SENDER_PASSWORD')
         self.recipient_email = os.getenv('RECIPIENT_EMAIL')
         self.youtube = build('youtube', 'v3', developerKey=self.youtube_api_key)
-        genai.configure(api_key=self.gemini_api_key)
+        # genai.configure(api_key=self.gemini_api_key)
         self.url = None
-        self.gemini_model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
+        # self.gemini_model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
         self.toeic_keywords = [
             'business', 'management', 'finance', 'marketing', 'conference',
             'schedule', 'appointment', 'deadline', 'budget', 'profit',
@@ -43,11 +43,10 @@ class TOEICWordExtractor:
                 return False
 
             # 提取单词
-            words = extract_toeic_words_with_gemini(self.gemini_model, transcript, video_info['title'])
+            words = extract_toeic_words_with_ollama(transcript, video_info['title'])
             
-
             # 准备 LINE 消息内容
-            current_date = datetime.now().strftime("%Y-%m-%d")
+            # current_date = datetime.now().strftime("%Y-%m-%d")
             message_content = f"Video URL - {self.url}\n\n"
             message_content += f"影片標題：{video_info['title']}\n\n"
             message_content += "單字列表：\n"
@@ -55,10 +54,10 @@ class TOEICWordExtractor:
             if not words:
                 message_content += "未找到任何單字。"
             else:
-                words_to_show = words[:50]
+                words_to_show = words[:10]
                 for i, word in enumerate(words_to_show, 1):
-                    message_content += f"\n{i}. {word['word']} ({word['part_of_speech']}) - {word['chinese']}\n"
-                    message_content += f"   例句：{word['example']}\n"
+                    message_content += f"\n{i}. {word['word']} ({word['part_of_speech']}) - {word['english_explanation']}\n"
+                    message_content += f"eg. {word['example']}\n"
 
             return {
                 'success': True,

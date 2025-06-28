@@ -1,59 +1,106 @@
 import json
 import logging
+import os
+import requests
 
-def extract_toeic_words_with_gemini(gemini_model, transcript_text, video_title):
+def extract_toeic_words_with_ollama(transcript_text, video_title):
+    """
+    使用 Ollama 本地 LLM 進行單字萃取
+    transcript_text: 字幕內容
+    video_title: 影片標題
+    """
     if not transcript_text:
         logging.error("字幕內容為空，無法提取單字")
         return []
     system_prompt = f"""
     ### Role
-    你是一位專業的英文老師，現在需要協助我考TOEIC，我希望我可以達到 990 分
+    You are a professional English teacher specializing in TOEIC test preparation, with extensive teaching experience and a deep understanding of the vocabulary required for a TOEIC score of 990. Your mission is to help me precisely grasp the key vocabulary essential for achieving a high TOEIC score.
 
     ### Goal
-    請從影片字幕中提取50個最適合TOEIC考試的重要英文單字，若有超過50個請提供我要達到990需要會的高級單字。
+    From the provided video subtitles, carefully select the 10 most important English words best suited for the TOEIC exam (especially for achieving a 990 target score). If there are fewer than 10 advanced words in the subtitles, please choose the words that best meet the requirements for a high TOEIC score from the existing subtitles, ensuring the selected words are most helpful for improving TOEIC performance.
 
-    
-    ### Role
-    1. 選擇TOEIC考試中常出現的商業、科技、學術相關單字
-    2. 優先選擇中高級難度的單字（不要太基礎的如 "the", "and"）
-    3. 包含不同詞性（名詞、動詞、形容詞、副詞）
-    4. 每個單字提供：英文單字、中文意思、詞性、例句
-    
-    ### Output
+    ### Chain-of-Thought (CoT)
+    1.  **Word Selection Criteria**:
+        * Prioritize words commonly appearing in TOEIC exam-related fields such as business, technology, workplace communication, and academic research.
+        * Exclude overly basic words (e.g., "the", "and", "is") and overly obscure words.
+        * Prioritize words of intermediate-advanced to advanced difficulty (CEFR B2-C2 levels), as these are key for a TOEIC 990 score.
+        * Select words that have multiple parts of speech or subtle nuances in different contexts, to test depth of language comprehension.
+        * Ensure the words are meaningful within the context of the subtitles.
+    2.  **Word Count Limit & Quality**:
+        * Strictly limit the output to 10 words.
+        * Even if there are fewer than 10 advanced words in the subtitles, strive to select the words that best meet the above criteria and guarantee their high quality.
+    3.  **Content Structure**:
+        * Each word must include: **English word (word)**, **English explanation (english_explanation)**, **part of speech (part_of_speech)**, and an **English example sentence (example)**. **Please make sure to provide a concise English explanation for every word.** These four parts are absolutely indispensable. Example sentences should be concise and reflect the common usage of the word in a TOEIC context.
+
+    ### Output Example
     {{
         "words": [
             {{
-                "word": "management",
-                "chinese": "管理",
-                "part_of_speech": "noun",
-                "example": "Good management is essential for business success."
+                "word": "facilitate",
+                "english_explanation": "to make an action or process easier or more likely to happen",
+                "part_of_speech": "verb",
+                "example": "The new software will facilitate data analysis for our team."
+            }},
+            {{
+                "word": "diligently",
+                "english_explanation": "in a way that shows care and conscientiousness in one's work or duties",
+                "part_of_speech": "adverb",
+                "example": "She worked diligently to meet the project deadline."
+            }},
+            {{
+                "word": "comprehensive",
+                "english_explanation": "including or dealing with all or nearly all elements or aspects of something",
+                "part_of_speech": "adjective",
+                "example": "We need a comprehensive review of the current market trends."
             }}
         ]
     }}
-    *Notice: 請確保回傳正確的JSON格式，包含恰好50個單字。*
-
-    Video trascript: {transcript_text}
+    *Notice: Please ensure the correct JSON format is returned. **Only return** JSON, with no explanatory text or markdown code blocks. **Emphasizing again, please ensure a concise English explanation is included for every word.**
     """
+    user_prompt = transcript_text
+
+    OLLAMA_CHAT_API_URL = os.getenv('OLLAMA_CHAT_API_URL', 'http://localhost:11434/api/chat')
+    MODEL_NAME = os.getenv('OLLAMA_MODEL_NAME', 'llama3.2')
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
+    request_payload = {
+        "model": MODEL_NAME,
+        "messages": messages,
+        "options": {
+            "num_predict": 8192,
+            "temperature": 0.7,
+            "top_p": 0.95,
+        }
+    }
+    
     try:
-        # messages = [
-        #     {"role": "system", "content": system_prompt},
-        #     {"role": "user", "content": transcript_text[:3000]}
-        # ]
-        response = gemini_model.generate_content(system_prompt)
-        result_text = response.text
-        if "```json" in result_text:
-            json_start = result_text.find("```json") + 7
-            json_end = result_text.find("```", json_start)
-            result_text = result_text[json_start:json_end]
-        elif "```" in result_text:
-            json_start = result_text.find("```") + 3
-            json_end = result_text.rfind("```")
-            result_text = result_text[json_start:json_end]
-        words_data = json.loads(result_text.strip())
-        logging.info(f"成功提取 {len(words_data['words'])} 個單字")
-        return words_data['words']
+        response = requests.post(OLLAMA_CHAT_API_URL, json=request_payload, stream=True)
+        response.raise_for_status()
+        # for line in response.iter_lines():
+        #     if line:
+        #         data = json.loads(line)
+        #         generated_content = data.get("message", {}).get("content", "")
+        #         print(generated_content, end="", flush=True)
+        # print()  # 換行
+        # 收集所有 streaming 回應內容
+        full_content = ""
+        for line in response.iter_lines():
+            if line:
+                data = json.loads(line)
+                full_content += data.get("message", {}).get("content", "")
+        print(full_content)
+        # 嘗試解析 JSON
+        try:
+            words_data = json.loads(full_content.strip())
+            logging.info(f"成功提取 {len(words_data['words'])} 個單字 (Ollama)")
+            return words_data['words']
+        except Exception as e:
+            logging.error(f"Ollama 回傳內容無法解析為 JSON: {e}\n內容: {full_content}")
+            return []
     except Exception as e:
-        logging.error(f"使用 Gemini 提取單字時發生錯誤: {e}")
+        logging.error(f"使用 Ollama 提取單字時發生錯誤: {e}")
         return []
 
 def generate_toeic_quiz(gemini_model, words):
@@ -98,7 +145,6 @@ def generate_toeic_quiz(gemini_model, words):
             }}
         ]
     }}
-    
     要求：
     1. 題目要符合 TOEIC 考試的難度和風格
     2. 選項要合理且具有迷惑性

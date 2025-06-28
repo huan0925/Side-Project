@@ -26,7 +26,7 @@ load_dotenv()
 
 # 檢查必要的環境變數
 required_env_vars = [
-    'YOUTUBE_API_KEY', 'GEMINI_API_KEY', 
+    'YOUTUBE_API_KEY', 
     'LINE_TOKEN', 'LINE_SECRET'
 ]
 

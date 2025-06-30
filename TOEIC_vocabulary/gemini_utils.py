@@ -14,7 +14,7 @@ def extract_toeic_words_with_ollama(transcript_text):
         logging.error("字幕內容為空，無法提取單字")
         return []
 
-    system_prompt = f"""You are a professional English teacher. From the text '{script}', provide 10 distinct vocabulary words.
+    system_prompt = f"""You are a professional English teacher. From the text '{transcript_text}', provide 10 distinct vocabulary words.
         For each word, you must provide:
         1.  The word itself.
         2.  Its English definition.

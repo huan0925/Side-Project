@@ -56,8 +56,8 @@ class TOEICWordExtractor:
             else:
                 words_to_show = words[:10]
                 for i, word in enumerate(words_to_show, 1):
-                    message_content += f"\n{i}. {word['word']} ({word['part_of_speech']}) - {word['english_explanation']}\n"
-                    message_content += f"eg. {word['example']}\n"
+                    message_content += f"\n{i}. {word['word']} ({word['part_of_speech']}) - {word['definition']}\n"
+                    message_content += f"eg. {word['example_sentence']}\n"
 
             return {
                 'success': True,
@@ -80,7 +80,7 @@ class TOEICWordExtractor:
         for video in videos:
             transcript = simple_get_video_transcript(video['video_id'])
             if transcript:
-                words = extract_toeic_words_with_gemini(self.gemini_model, transcript, video['title'])
+                words = extract_toeic_words_with_ollama(self.gemini_model, transcript, video['title'])
                 if len(words) >= 10:
                     current_date = datetime.now().strftime("%Y-%m-%d")
                     video = self.url
@@ -111,7 +111,7 @@ class TOEICWordExtractor:
                 return None
 
             # 使用 Gemini 提取單字
-            words = extract_toeic_words_with_gemini(self.gemini_model, transcript_text, video_title)
+            words = extract_toeic_words_with_ollama(self.gemini_model, transcript_text, video_title)
             if not words:
                 logging.error("無法提取單字")
                 return None

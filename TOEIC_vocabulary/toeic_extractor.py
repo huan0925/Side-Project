@@ -43,7 +43,7 @@ class TOEICWordExtractor:
                 return False
 
             # 提取单词
-            words = extract_toeic_words_with_ollama(transcript, video_info['title'])
+            words = extract_toeic_words_with_ollama(transcript)
             
             # 准备 LINE 消息内容
             # current_date = datetime.now().strftime("%Y-%m-%d")

@@ -4,7 +4,7 @@ from datetime import datetime
 from youtube_transcript_api import YouTubeTranscriptApi
 # import google.generativeai as genai
 from googleapiclient.discovery import build
-from email_utils import create_email_content, send_email
+# from email_utils import create_email_content, send_email
 from youtube_utils import search_youtube_videos, simple_get_video_transcript, get_video_title, get_video_info_by_url
 from model_utils import extract_toeic_words_with_ollama
 from quiz_generator import generate_toeic_quiz, format_quiz_for_email
@@ -70,31 +70,6 @@ class TOEICWordExtractor:
                 'success': False,
                 'message': f"處理影片時發生錯誤: {str(e)}"
             }
-
-    def daily_word_extraction(self):
-        logging.info("開始每日單字萃取流程...")
-        videos = search_youtube_videos(self.youtube)
-        if not videos:
-            logging.error("無法找到合適的影片")
-            return
-        for video in videos:
-            transcript = simple_get_video_transcript(video['video_id'])
-            if transcript:
-                words = extract_toeic_words_with_ollama(self.gemini_model, transcript, video['title'])
-                if len(words) >= 10:
-                    current_date = datetime.now().strftime("%Y-%m-%d")
-                    video = self.url
-                    email_content = create_email_content(words[:50], video)
-                    if send_email(video, email_content, self.sender_email, self.sender_password, self.recipient_email):
-                        logging.info("今日單字學習 email 發送完成！")
-                        return
-                    else:
-                        logging.error("Email 發送失敗")
-                else:
-                    logging.warning(f"從影片 {video['title']} 中萃取的單字數量不足")
-            else:
-                logging.warning(f"無法獲取影片 {video['title']} 的字幕")
-        logging.error("所有影片都無法成功萃取足夠的單字")
 
     def daily_word_extraction_with_quiz(self, video_url):
         try:

@@ -1,7 +1,7 @@
 # TOEIC_vocabulary/tests/test_gemini_utils.py
 
 import pytest
-from gemini_utils import extract_toeic_words_with_gemini
+from TOEIC_vocabulary.model_utils import extract_toeic_words_with_gemini
 
 class DummyGeminiModel:
     def generate_content(self, prompt):

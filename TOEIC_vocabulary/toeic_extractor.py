@@ -6,7 +6,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from googleapiclient.discovery import build
 from email_utils import create_email_content, send_email
 from youtube_utils import search_youtube_videos, simple_get_video_transcript, get_video_title, get_video_info_by_url
-from gemini_utils import extract_toeic_words_with_ollama
+from model_utils import extract_toeic_words_with_ollama
 from quiz_generator import generate_toeic_quiz, format_quiz_for_email
 
 class TOEICWordExtractor:
